@@ -1,0 +1,29 @@
+---
+title: "230_Consulting_TimeSeries"
+author: "Selin Karabulut, Sophia Arabadjis, Shuying Yu"
+date: "4/27/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#Libraries
+library(tidyverse)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
