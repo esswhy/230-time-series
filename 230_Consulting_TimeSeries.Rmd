@@ -1,12 +1,19 @@
 ---
-title: "230_Consulting_TimeSeries"
+title: "PSTAT 230: Time Series Consulting"
 author: "Selin Karabulut, Sophia Arabadjis, Shuying Yu"
 date: "4/27/2021"
-output: pdf_document
+output: 
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    number_sections: true
+    code_folding: hide
+bibliography: refs_file.bib
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 
