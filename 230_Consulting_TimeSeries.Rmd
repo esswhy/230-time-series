@@ -4,12 +4,13 @@ author: "Selin Karabulut, Sophia Arabadjis, Shuying Yu"
 date: "4/27/2021"
 output: 
   html_document:
+    df_print: paged
     theme: flatly
     toc: true
     toc_float: true
     number_sections: true
     code_folding: hide
-bibliography: refs_file.bib
+#bibliography: refs_file.bib
 ---
 
 ```{r setup, include=FALSE}
@@ -17,14 +18,47 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 
+# An intuition for time series and data analysis in R
+
+Time series data can be thought of as data consistently measured or observed at different points in time. In this way, the data have an implicit \textit{order} or flow, and questions about time series data often involve questions about change over time. 
+
 ```{r}
 #Libraries
 library(tidyverse)
 library(lubridate)
+library(astsa)
 
+# Load data sets
+data("cmort")
+data("part")
+cmort <- cmort
+part <- part
+paste("Particulate Matter Data", paste(head(part), collapse = " "))
+paste("Cardiac Mortality Data", paste(head(cmort),collapse = " "))
 ```
 
+In this case, we know that the data comes from the average weekly cardiovascular mortality in Los Angeles County. We can instruct the `R` to read and format that data in that way using `ts(data, start=(),frequency)` arguments, where in the `start` we dictate the year and week of the data start, and the frequency specifies how many weeks (52) to consider. Using '`ts` objects is very handy because we don't have to store and manipulate dates (if they are regular interval), and visualization becomes easier.
 
+```{r}
+cmort.ts <- ts(cmort, start = c(1970,1),frequency = 52)
+cmort.ts
+```
+
+For the particulate matter data set, we know this data set comes from the LA pollution study and is measured from 1970 through 1980, weekly.
+
+```{r, df_print}
+part.ts <- ts(part, start = c(1970,1), frequency = 52)
+layout(matrix(c(1:2, 1:2), ncol=2), height=c(.5,.5)) 
+par(mar=c(.2,2,0,.5), oma=c(3.2,3,2.5,0), las=1)
+plot(part.ts, type='n', xaxt='no', ylab='PM Conc.')
+grid(lty=1, col=gray(.9))
+lines(part.ts, col = "cadetblue3")
+plot(cmort.ts, type='n', ylab='Cardiac Mortality')
+grid(lty=1, col=gray(.9))
+lines(cmort.ts, col="orange3")
+mtext(side=1, "Date", line=2)
+title(main = "PM Concentration & Cardiovascular Mortality", outer = T)
+```
 
 
 
