@@ -10,7 +10,7 @@ output:
     toc_float: true
     number_sections: true
     code_folding: hide
-#bibliography: refs_file.bib
+bibliography: refs_file.bib
 ---
 
 ```{r setup, include=FALSE}
@@ -19,6 +19,10 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 
 # An intuition for time series and data analysis in R
+
+
+We are using an example data set used in @shumway_time_2017. Examples for code using \textit{R} to explore time series data is also found in @hyndman_forecasting_nodate. 
+
 
 Time series data can be thought of as data consistently measured or observed at different points in time. In this way, the data have an implicit \textit{order} or flow, and questions about time series data often involve questions about change over time. 
 
@@ -60,6 +64,8 @@ mtext(side=1, "Date", line=2)
 title(main = "PM Concentration & Cardiovascular Mortality", outer = T)
 ```
 
+
+# References
 
 
 
