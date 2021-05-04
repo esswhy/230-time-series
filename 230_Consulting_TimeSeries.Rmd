@@ -281,7 +281,7 @@ The first subplot (blue line) shows the weekly average particulate matter concen
 
 *Note the strong seasonal components in all of the series, corresponding to winter-summer variations and the downward trend in the cardiovascular mortality over the 10-year period [@shumway_time_2006; @shumway_time_2017]. 
 
-We might want to start by simply visualizing the different time series together using a simple correlation measure for the different time series. The diagonal displays the histogram and kernel density estimates of the variables. The lower off-diagonal shows the bivariate scatterplots with a lowess fitted line, and the upper off-diagonal shows the Pearson’s $\rho$ coefficient with significance levels ($\cdot$ p < 0.1, ** p < 0.01, *** p < 0.001).
+We might want to start by simply visualizing the different time series together using a simple correlation measure for the different time series. The diagonal displays the histogram and kernel density estimates of the variables. The lower off-diagonal shows the bivariate scatterplots with a lowess fitted line, and the upper off-diagonal shows the Pearson’s $R$ coefficient with significance levels ($\cdot$ p < 0.1, ** p < 0.01, *** p < 0.001).
 
 ```{r}
 #Correlation, scatter plots, and bivariate regression
@@ -338,9 +338,9 @@ Recall from the univariate case that ACF can also help us assess stationarity. P
 
 ```{r}
 ## Plot temperature
-g1 <- autoplot(acf(part.ts,plot=F, type = "correlation"))+labs(title="Correlogram of Cardiovascular Particular Matter, 1970-1980")+theme_bw()
+g1 <- autoplot(acf(part.ts,plot=F, type = "correlation"))+labs(title="Correlogram of  Particular Matter, 1970-1980")+theme_bw()
 ## Plot particulate matter
-g2 <- autoplot(acf(tempr.ts,plot=F, type = "correlation"))+labs(title="Correlogram of Cardiovascular Temperature, 1970-1980") +theme_bw()
+g2 <- autoplot(acf(tempr.ts,plot=F, type = "correlation"))+labs(title="Correlogram of  Temperature, 1970-1980") +theme_bw()
 grid.arrange(ncol=1,g1,g2)
 ```
 
@@ -378,7 +378,7 @@ df <- cbind(Mortality = cmort.ts,PM = part.ts,Temp = tempr.ts)
 apply(df,2,adf.test)
 ```
 
-# Modeling Multivariat Time Series in R
+# Modeling Multivariate Time Series in R
 
 Based on our exploratory data analysis, we have a good sense of what to expect in a model:
 
