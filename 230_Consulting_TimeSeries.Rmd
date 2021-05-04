@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 
-We are using an example data set used in the Appendix by @shumway_time_2017. Additional examples for code using `R` to explore time series data is also found in @hyndman_forecasting_nodate. 
+We are using an example data set used in the Appendix by @shumway_time_2017. Additional examples for code using `R` to explore time series data is also found in @hyndman_forecasting_nodate. For this analysis we use `tidyverse` @tidyverse, `lubridate` @lubridate, `PerformanceAnalytics` @PerformanceAnalytics, `Hmisc` @Hmisc, `astsa` @astsa, `ggfortify` @ggfortify, `tseries` @tseries, `forecast` @forecast, and `gridExtra` @gridextra. 
 
 
 Time series data can be thought of as data consistently measured or observed at different points in time. In this way, the data have an implicit _order_ or flow, and questions about time series data often involve questions about change over time. 
@@ -304,6 +304,8 @@ We also might want to visualize the decomposition of the cardiovascular mortalit
 
 ```{r}
 cmort.decomp <- decompose(cmort.ts, "additive")
+tempr.decomp <- decompose(tempr.ts,"additive")
+autoplot(tempr.decomp)
 autoplot(cmort.decomp)
 ```
 
