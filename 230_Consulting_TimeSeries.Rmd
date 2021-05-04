@@ -18,9 +18,6 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 
-# An intuition for time series and data analysis in R
-
-
 We are using an example data set used in the Appendix by @shumway_time_2017. Additional examples for code using `R` to explore time series data is also found in @hyndman_forecasting_nodate. 
 
 
@@ -34,27 +31,201 @@ library(PerformanceAnalytics)
 library(Hmisc)
 library(astsa)
 library(ggfortify)
-
-# Load data sets
-data("cmort")
-data("part")
-cmort <- cmort
-part <- part
-paste("Particulate Matter Data", paste(head(part), collapse = " "))
-paste("Cardiac Mortality Data", paste(head(cmort),collapse = " "))
+library(tseries)
+library(forecast)
+library(gridExtra)
 ```
 
-As a running example, we can work with three data sets from Shumway and Stoffer's 2017 book @shumway_time_2017. 
+# Univariate Analysis
+
+The AirPassenger dataset in the `astsa` package in `R` provides monthly totals of a US airline passengers, from 1949 to 1960. This data is already of a time series class therefore no further class or date manipulation is required.
+
+```{r}
+data(AirPassengers)
+AP <- AirPassengers
+# Take a look at the class of the dataset AirPassengers
+class(AP)
+```
+
+The class object is `ts` which means it has inherent time structures. (Note that these time structures are *not* apparent with the `head()` command.)
+```{r}
+# Take a look at the entries
+AP
+head(AP)
+```
+
+Initially, we want to check for a few key assumptions in the dataclass `ts`: 
+
+(1) No `NA` values
+(2) The frequency is 12, one for each month
+(3) The cycle (are there 12 months per year? Are they ordered correctly?)
+
+```{r}
+# Check for missing values
+sum(is.na(AP))
+
+# Check the frequency of the time series
+frequency(AP)
+
+# Check the cycle of the time series
+cycle(AP)
+```
+
+
+## Visualize the Data: Basic Plots 
+
+Next we can visualize the data by simply plotting the `ts` object. 
+
+```{r}
+# Plot the raw data using the base plot function
+plot(AP,xlab="Date", ylab = "Passenger numbers (Thousands)",main="Air Passenger numbers from 1949 to 1961")
+```
+
+As an alternative to the base plot function, so we can also use the extension `ggfortify` in `R`, which works with the `ggplot2` package. This way, we avoid having to convert to a dataframe as required with `ggplot2`, but still having access to the layering grammar of graphics.
+
+```{r}
+autoplot(AP) + labs(x ="Date", y = "Passenger numbers (Thousands)", title="Air Passengers from 1949 to 1961") + theme_bw()
+```
+
+These basic plots provide a lot of information about the nature of the time series, in particularly with respect to periodicity and trend. 
+
+First, we can see from the plot a repeating peak-trough shape, that seems to repeat every year or so. This is evidence of periodic change and perhaps seasonality.
+
+Second, we can see that the amplitude (distance from trough to peak) increases as time goes on. This may be evidence for a nonstationary time series.
+
+Third, we can see evidence of a general trend. That is, overall, the number of passengers has been increasing from 1950 to 1960, even over the periodic fluctations. 
+
+We can further investigate seasonality with a boxplot:
+
+```{r}
+#Let’s use the boxplot function to see any seasonal effects.
+
+boxplot(AP~cycle(AP),xlab="Date", ylab = "Passenger Numbers (1000's)" ,main ="Monthly Air Passengers Boxplot from 1949 to 1961")
+```
+
+
+
+From these exploratory plots, we can make some initial conclusions:
+
+* The passenger numbers increase over time with each year which may be indicative of an increasing linear trend, perhaps due to increasing demand for flight travel and commercialization of airlines in that time period.
+
+* In the boxplot there are more passengers travelling in months 6 to 9 with higher means and higher variances than the other months, indicating seasonality with a apparent cycle of 12 months. The rationale for this could be more people taking holidays and fly over the summer months in the US.
+
+* The air passengers data appears to be *multiplicative* time series as the passenger numbers increase, it appears so does the pattern of seasonality.
+
+* There do not appear to be any outliers and there are no missing values. Therefore no data cleaning is required.
+
+
+## Visualize the Data: Decomposition
+
+Continuing to use `ggfortify`, we can further explore the multiplicative nature of the time series uisng the `decompose(data,type)` command. 
+
+```{r}
+#With this model, we will use the decompose function in R. Continuing to use ggfortify for plots, in one line, autoplot these decomposed #components to further analyze the data.
+
+decomposeAP <- decompose(AP,"multiplicative")
+autoplot(decomposeAP)
+```
+
+
+In these decomposed plots we can again see the trend and seasonality as inferred previously, but we can also observe the estimation of the random component depicted under the “remainder”.
+
+
+## Exploring Stationarity
+
+A *stationary* time series has three conditions: the mean, the variance and the covariance of a time series must not be functions of time. Strict stationarity...  
+
+In order to fit ARIMA models, the time series is required to be stationary. We will use two methods to test the stationarity.
+
+1) Augmented Dickey-Fuller Test (ADF)
+2) Autocorrelation plots
+
+In order to test the stationarity of the time series, let’s run the Augmented Dickey-Fuller Test using the adf.test function from the `tseries` `R` package.
+
+For this test, the null hypothesis, $H_0$ is that the time series is nonstationary, and the alternative hypothesis, $H_A$ is that the time series is stationary (mean, variance, covariance are time independent).
+
+```{r}
+adf.test(AP) 
+```
+
+If we set $\alpha$ to 0.05, the results of the test suggest that time series is nonstationary. This assumption is supported by our initial visualizations.
+
+We can also use autocorrelation to help assess if our time series is stationary.
+
+The general thrust behind autocorrelation is the concept of a _*lag*_, or a delay between one point $x_s$ and another point $x_t$ in the same series. A lag of 1 means comparing a the original time series ($x_1,x_2,...x_s$) with its counter part ($x_{1+1},x_{2+1},...,x_{s}$). Note that the length of the string does change a forward or backward lag of any length (except 0). The correlation between the orginal time series and lagged counterparts form the basis for autocorrelation.
+
+We will use autocorrelation function `acf` in from the base `stats` `R `package. This function plots the correlation between a series and its lags with a 95% confidence interval in blue. If the autocorrelation value crosses the dashed blue line, it means that specific lag is significantly correlated with current series.
+
+```{r}
+autoplot(acf(AP,plot=FALSE))+ labs(title="Correlogram of Air Passengers from 1949 to 1961")+
+  theme_bw()
+```
+
+
+The maximum at lag 1 or 12 months, indicates a positive relationship with the 12 month cycle.
+
+Since we have already created a `decomposeAP` list object with a random component, we can plot the `acf` of the `decomposeAP$random` which is equivalent to plotting the `remainder` plot in our initial decomposition.
+
+```{r}
+# Review random time series for any missing values
+decomposeAP$random 
+```
+
+```{r}
+# Autoplot the random time series from 7:138 which exclude the NA values
+autoplot(acf(decomposeAP$random[7:138],plot=FALSE))+ labs(title="Correlogram of Air Passengers Random Component from 1949 to 1961") +theme_bw()
+```
+
+# Extra Topics: Model Fitting
+
+We can use the stationarity exploration to then fit models to the data. 
+
+## Linear Model
+
+Since there is an upwards trend we will look at a linear model first for comparison. We plot AirPassengers raw dataset with a blue linear model.
+
+```{r}
+autoplot(AP) + geom_smooth(method="lm")+ labs(x ="Date", y = "Passenger numbers (1000's)", title="Air Passengers from 1949 to 1961")
+```
+
+This may not be the best model to fit as it doesn’t capture the seasonality and multiplicative effects over time.
+
+## ARIMA Model
+
+Instead, we might try an Auto Regressive Integrated Moving Average. This is a form of regression that uses lags to explain variation. 
+
+As a simple introduction we can use the `auto.arima` function from the `forecast` `R` package to fit the best model and coefficients, given the default parameters including seasonality as `TRUE`. Note we have used the ARIMA modeling procedure as referenced..
+
+```{r}
+arimaAP <- auto.arima(AP)
+arimaAP
+```
+
+## Forcasting
+
+Finally we can plot a forecast of the time series using the `forecast` function, again from the `forecast` `R` package, with a 95% confidence interval where $h$ is the forecast horizon periods in months.
+
+
+```{r}
+
+forecastAP <- forecast(arimaAP, level = c(95), h = 36)
+autoplot(forecastAP)
+```
+
+
+# Multivariate Analysis
+
+Sometimes we might have a collection of time series that we might want to interpret together. For example, we can work with three data sets from Shumway and Stoffer's 2017 book @shumway_time_2017. 
 
 (1) The first data set is called `cmort` and captures the average weekly cardiovascular mortality in Los Angeles County from 1970 to 1980.
 
 (2) The second data set is called `part` and captures the average weekly particulate matter concentration in Los Angeles County from 1970 to 1980.
 
-(3) The third data set is called `temp` and captures the average weekly temperature in Los Angeles County from 1970 to 1980. 
+(3) The third data set is called `tempr` and captures the average weekly temperature in Los Angeles County from 1970 to 1980. 
 
 We can instruct the `R` to read and format each data set using `ts(data, start=(),frequency)` arguments, where in the `start` we dictate the year and week of the data start, and the frequency specifies how many weeks (52) to consider. Using `ts` objects is very handy because we don't have to store and manipulate dates (if they are regular interval), and visualization becomes easier.
 
-```{r}
+```{r, message=F}
 ## Load in and save data from astsa package
 data(cmort)
 cmort <- cmort
@@ -64,11 +235,9 @@ data(part)
 part <- part
 ## Save as ts objects
 cmort.ts <- ts(cmort, start = c(1970,1),frequency = 52)
-cmort.ts
 part.ts <- ts(part, start = c(1970,1), frequency = 52)
-part.ts
 tempr.ts <- ts(tempr, start=c(1970,1), frequency = 52)
-tempr.ts
+
 ```
 
 <br>
@@ -78,7 +247,7 @@ The first thing we might want to do is simply visualize the data. Because the `c
 ```{r, df_print}
 #Set figure parameters
 layout(matrix(c(1:3, 1:3), ncol=2), height=c(.5,.5, .5)) 
-par(mar=c(.2,2,0,.5), oma=c(3.2,3,2.5,0), las=1)
+par(mar=c(.2,2,0,.5), oma=c(3.2,3,2.5,0.5), las=1)
 
 #Particulate matter
 plot(part.ts, type='n', xaxt='no', ylab='PM Conc.')
@@ -91,9 +260,9 @@ grid(lty=1, col=gray(.9))
 lines(cmort.ts, col="orange3")
 
 #Temperature
-plot(temp.ts, type='n', ylab="Temperature")
+plot(tempr.ts, type='n', ylab="Temperature")
 grid(lty=1, col=gray(.9))
-lines(temp.ts, col="forestgreen")
+lines(tempr.ts, col="forestgreen")
 
 #Labels
 mtext(side=1, "Year", line=2)
@@ -102,37 +271,17 @@ title(main = "Particulate Concentration, Cardiovascular Mortality, and Temperatu
 
 The first subplot (blue line) shows the weekly average particulate matter concentration. The next subplot (orange line) shows the weekly cardiovascular death count. The final line in green shows the average weekly temperature. From a descriptive stand point, a few things stand out about this plot: 
 
-\item All of these lines exhibit a _periodicity_ or repetivite cycle of peaks and troughs.
-\item The peaks in the particulate matter line (blue) and peaks in the cardiovascular mortality line (orange) are relatively similar -- they seem to occur within close proximity of each other.
-\item The green line (temperature) appears to be somewhat offset from the cardiovascular and particulate matter lines. 
+* All of these lines exhibit a _periodicity_ or repetivite cycle of peaks and troughs.
 
+* The peaks in the particulate matter line (blue) and peaks in the cardiovascular mortality line (orange) are relatively similar -- they seem to occur within close proximity of each other.
 
-Down the line, we may eventually be interested in exploring the relationship (if any) between these time series. 
+* The green line (temperature) appears to be somewhat offset from the cardiovascular and particulate matter lines. 
 
-For now, we'll focus on one time series (cardiovascular mortality) and return to the question of multivariate time series later.
+* The amplitude appears to be decreasing for the cardiovascular mortality, and relatively constant for the other lines.
 
-```{r, warning=F}
-## Plotting correlation:
-par(mfrow=c(3,3))
-n <- seq(1,9,1)
-for (i in 1:9){
-  plot(as.vector(cmort),lag(as.vector(cmort),n=i),
-       xlab= "C.Mort.", ylab=paste("Lag",i),
-       main = paste("Lag",i))
-}
+*Note the strong seasonal components in all of the series, corresponding to winter-summer variations and the downward trend in the cardiovascular mortality over the 10-year period [@shumway_time_2006; @shumway_time_2017]. 
 
-## Plotting ACF
-autoplot(acf(cmort.ts,plot=F, type = "correlation"))+labs(title="Correlogram of Cardiovascular Mortality, 1970-1980")+theme_bw()
-```
-
-# Exploratory data analysis for time series data in R
-
-To measure dependence, we can use an **autocorrelation function (ACF)** in a time series model. ACF measures the linear predictability of the time series ($x_1,x_2,...x_n$) at time $s$ using only its adjacent value at time $t$ [@shumway_time_2006]. This can be done by using a linear combination of inputs. Thus, ACF provides the ability to forecast the series at time $s+1$ from the value of $x$ at time $t$ ($x_s$). 
-
-What we also can do is plot the temperature data as another series to observe how particulate matter and cardiovascular mortality covary.
-
-Note the strong seasonal components in all of the series, corresponding to winter-summer variations and the downward trend in the cardiovascular mortality over the 10-year period [@shumway_time_2006; @shumway_time_2017]. 
-
+We might want to start by simply visualizing the different time series together using a simple correlation measure for the different time series. The diagonal displays the histogram and kernel density estimates of the variables. The lower off-diagonal shows the bivariate scatterplots with a lowess fitted line, and the upper off-diagonal shows the Pearson’s $\rho$ coefficient with significance levels ($\cdot$ p < 0.1, ** p < 0.01, *** p < 0.001).
 
 ```{r}
 #Correlation, scatter plots, and bivariate regression
@@ -142,34 +291,106 @@ df <- cbind(Particulates=part,
 chart.Correlation(df)
 ```
 
-Correlation matrix for the different time series. The diagonal displays the histogram and kernel density estimates of the variables. The lower off-diagonal shows the bivariate scatterplots with a lowess fitted line, and the upper off-diagonal shows the Pearson’s *R* coefficient with significance levels ($\cdot$ p < 0.1, ** p < 0.01, *** p < 0.001).
-
-
-The scatterplots indicate a possible linear relation between mortality and the pollutant particulates, and between mortality and temperature. 
-
+We might also consider looking for seasonality by either plotting weekly totals, or aggregating up to month.
 
 ```{r}
-plot(tempr, cmort, xlab="Temperature", ylab="Mortality")
-lines(lowess(tempr, cmort))
+## Weekly Aggregates
+boxplot(cmort.ts~cycle(cmort.ts),xlab="Date", ylab = "Cardiovascular Mortality" ,main ="Weekly Cardiovascular Mortality Boxplot from 1949 to 1961")
+boxplot(tempr.ts~cycle(tempr.ts),xlab="Date", ylab = "Temperature" ,main ="Weekly Temperature Boxplot from 1949 to 1961")
+boxplot(part.ts~cycle(part.ts),xlab="Date", ylab = "Particulate Matter" ,main ="Weekly Particulate Matter Conc. Boxplot from 1949 to 1961")
 ```
 
-
-
-
-
-
-
-# Modeling time series in R
+We also might want to visualize the decomposition of the cardiovascular mortality time series-- which, looks *additve* from our data.
 
 ```{r}
-#Summary
-summary(df)
+cmort.decomp <- decompose(cmort.ts, "additive")
+autoplot(cmort.decomp)
+```
+
+We can also consider each time series separately by plotting the lag correlations (as below with the cardiovascular mortality data).
+
+```{r, warning=F}
+## Plotting correlation:
+layout(matrix(c(1:3, 1:3), ncol=2), height=c(.5,.5, .5)) 
+par(mar=c(.2,.5,1.5,.5), oma=c(3.2,3,1.5,0.5), las=1)
+par(mfrow=c(3,3))
+n <- seq(1,18,2)
+for (i in n){
+  plot(as.vector(cmort),lag(as.vector(cmort),n=i),
+       xlab= "C.Mort.", ylab=paste("Lag",i),
+       main = paste("Lag",i),xaxt='n',yaxt='n')
+}
+title(main = "Cardiovascular Mortality with Lags",outer = T)
+```
+
+We can also see this pattern confirmed in the `acf` plot (also called a correlogram). 
+To measure dependence, we can use an **autocorrelation function (ACF)** in a time series model. ACF measures the linear predictability of the time series ($x_1,x_2,...x_n$) at time $s$ using only its adjacent value at time $t$ [@shumway_time_2006]. This can be done by using a linear combination of inputs. It also ACF provides the ability to forecast the series at time $s+1$ from the value of $x$ at time $t$ ($x_s$). 
+
+```{r}
+## Plotting ACF Cardiovascular Mortality
+autoplot(acf(cmort.ts,plot=F, type = "correlation"))+labs(title="Correlogram of Cardiovascular Mortality, 1970-1980")+geom_vline(xintercept = .308,col="pink",lty=2) +theme_bw()
+```
+
+Recall from the univariate case that ACF can also help us assess stationarity. Prolonged negative or positive values indicate nonstationarity. These plots have a significant correlations that persist too long to be stationary.
 
 
-#Center temperature
+```{r}
+## Plot temperature
+g1 <- autoplot(acf(part.ts,plot=F, type = "correlation"))+labs(title="Correlogram of Cardiovascular Particular Matter, 1970-1980")+theme_bw()
+## Plot particulate matter
+g2 <- autoplot(acf(tempr.ts,plot=F, type = "correlation"))+labs(title="Correlogram of Cardiovascular Temperature, 1970-1980") +theme_bw()
+grid.arrange(ncol=1,g1,g2)
+```
+
+We can also assess the relationship between two time series explicitly using the sample cross correlation. For some background, the sample CCF is the set of sample correlations between $part_{t+h}$ and $cmort_t$ for example, where h is the lag of ($0, +/- 1, +/-2,...$). 
+
+* When $h$ is negative than we interpret that as particulate matter _leads_ cardiovascular mortality (for example)
+* When $h$ is positive that we interpret that as particulate matter _lags_ cardiovascular mortality (for example)
+
+We can investigate this using `ccf` command in `R`.
+
+```{r}
+pm_cmort.ccf <- ccf(part,cmort,type="correlation", plot = F)
+autoplot(pm_cmort.ccf)+ggtitle("Cardiovascular Mortality and Particulate Matter CCF")
+temp_cmort.ccf <- ccf(tempr,cmort,type="correlation", plot = F)
+autoplot(temp_cmort.ccf)+ggtitle("Cardiovascular Mortality and Temperature CCF")
+```
+From these plots, it seems that peak particulate matter lead is around -0.1356. The peak temperatures (mean centered) is -.4433 which again suggests that temperature leads cardiovascular mortality.
+
+Finally, we can learn a lot from simple scatterplots about relationship between cardiovascular mortality and temperature and/or particulate matter. The scatterplots indicate a possible *nonlinear* relation between mortality and the temperature, and a more linear pattern between mortality and particulate matter. 
+
+
+```{r}
+par(mfrow=c(1,2))
+plot(tempr, cmort, xlab="Temperature", ylab="Mortality", main = "Mortality and \nTemperature")
+lines(lowess(tempr, cmort),col="red")
+plot(part,cmort,xlab="Particulate Matter Conc.",ylab = "Mortality", main = "Mortality and \n Particulate Matter")
+lines(lowess(part,cmort),col="red")
+```
+
+We can further check the nonstationariy with the ADF test. 
+
+```{r}
+df <- cbind(Mortality = cmort.ts,PM = part.ts,Temp = tempr.ts)
+#autoplot(df)+ggtitle("Time Series Cardiovascular Mortality, Temperature, PM Conc.")+theme(plot.title=element_text(hjust=0.5))
+apply(df,2,adf.test)
+```
+
+# Modeling Multivariat Time Series in R
+
+Based on our exploratory data analysis, we have a good sense of what to expect in a model:
+
+* nonstationarity
+* square relationship with temperature and mortality
+* additivity
+
+So we can model this: 
+
+```{r}
+#Center temperature to account for scaling
 temp <- tempr-mean(tempr)
 temp2 <- temp^2
-trend <- time(cmort) # time
+trend <- time(cmort) # time index
 
 #Linear regression fit
 summary(fit <- lm(cmort~ trend + temp + temp2 + part, na.action=NULL))
@@ -178,7 +399,6 @@ summary(fit <- lm(cmort~ trend + temp + temp2 + part, na.action=NULL))
 summary(aov(fit)) 
 summary(aov(lm(cmort~cbind(trend, temp, temp2, part)))) 
 
-
 #AIC, BIC, AICc
 num <- length(cmort) # sample size
 AIC(fit)/num - log(2*pi) # AIC
@@ -186,11 +406,9 @@ BIC(fit)/num - log(2*pi) # BIC
 (AICc <- log(sum(resid(fit)^2)/num) + (num+5)/(num-5-2)) #AiCc
 ```
 
-We can relate mean adjusted temperature and particulate levels to cardiovascular mortality.
+We can further relate mean adjusted temperature and particulate levels to cardiovascular mortality.
 
-
-
-```{r}
+```{r, message=F}
 #ACF
 acf2(resid(fit), 52) # implies AR2
 sarima(cmort, 2,0,0, xreg=cbind(trend,temp,temp2,part))
@@ -200,165 +418,6 @@ We assume that the current value at time *t* is white noise temporarily. The sam
 the residuals from the ordinary least squares fit of the model. The residual analysis output from `sarima` shows no obvious departure of the residuals from white noise.
 
 
-## Time Series Analysis and Modeling with the Air Passengers Dataset
-
-```{r}
-library(ggfortify)
-library(tseries)
-library(forecast)
-```
-
-```{r}
-data(AirPassengers)
-AP <- AirPassengers
-# Take a look at the class of the dataset AirPassengers
-class(AP)
-```
-
-The AirPassenger dataset in R provides monthly totals of a US airline passengers, from 1949 to 1960. This dataset is already of a time series class therefore no further class or date manipulation is required.
-
-
-### PERFORM EXPLORATORY DATA ANALYSIS
-
-```{r}
-# Take a look at the entries
-AP
-```
-
-
-```{r}
-# Check for missing values
-sum(is.na(AP))
-```
-
-```{r}
-# Check the frequency of the time series
-frequency(AP)
-```
-
-
-```{r}
-# Check the cycle of the time series
-cycle(AP)
-````
-
-```{r}
-# Plot the raw data using the base plot function
-plot(AP,xlab="Date", ylab = "Passenger numbers (1000's)",main="Air Passenger numbers from 1949 to 1961")
-```
-
-As an alternative to the base plot function, so we can also use the extension ggfortify R package from the ggplot2 package, to plot directly from a time series. The benefits are not having to convert to a dataframe as required with ggplot2, but still having access to the layering grammar of graphics.
-
-```{r}
-autoplot(AP) + labs(x ="Date", y = "Passenger numbers (1000's)", title="Air Passengers from 1949 to 1961") 
-```
-
-
-```{r}
-#Let’s use the boxplot function to see any seasonal effects.
-
-boxplot(AP~cycle(AP),xlab="Date", ylab = "Passenger Numbers (1000's)" ,main ="Monthly Air Passengers Boxplot from 1949 to 1961")
-```
-
-From these exploratory plots, we can make some initial inferences:
-
-The passenger numbers increase over time with each year which may be indicative of an increasing linear trend, perhaps due to increasing demand for flight travel and commercialisation of airlines in that time period.
-In the boxplot there are more passengers travelling in months 6 to 9 with higher means and higher variances than the other months, indicating seasonality with a apparent cycle of 12 months. The rationale for this could be more people taking holidays and fly over the summer months in the US.
-AirPassengers appears to be multiplicative time series as the passenger numbers increase, it appears so does the pattern of seasonality.
-There do not appear to be any outliers and there are no missing values. Therefore no data cleaning is required.
-
-
-
-### TIME SERIES DECOMPOSITION
-
-
-```{r}
-#With this model, we will use the decompose function in R. Continuing to use ggfortify for plots, in one line, autoplot these decomposed #components to further analyse the data.
-
-decomposeAP <- decompose(AP,"multiplicative")
-autoplot(decomposeAP)
-```
-
-
-In these decomposed plots we can again see the trend and seasonality as inferred previously, but we can also observe the estimation of the random component depicted under the “remainder”.
-
-
-### TEST STATIONARITY OF THE TIME SERIES
-
-A stationary time series has the conditions that the mean, variance and covariance are not functions of time. In order to fit arima models, the time series is required to be stationary. We will use two methods to test the stationarity.
-
-1. Test stationarity of the time series (ADF)
-
-In order to test the stationarity of the time series, let’s run the Augmented Dickey-Fuller Test using the adf.test function from the tseries R package.
-
-First set the hypothesis test:
-
-The null hypothesis H0
- : that the time series is non stationary
-The alternative hypothesis HA
- : that the time series is stationary
- 
-
-```{r}
-adf.test(AP) 
-```
-
-As a rule of thumb, where the p-value is less than 5%, we strong evidence against the null hypothesis, so we reject the null hypothesis. As per the test results above, the p-value is 0.01 which is <0.05 therefore we reject the null in favour of the alternative hypothesis that the time series is stationary.
-
-2. Test stationarity of the time series (Autocorrelation)
-
-Another way to test for stationarity is to use autocorrelation. We will use autocorrelation function (acf) in from the base stats R package. This function plots the correlation between a series and its lags ie previous observations with a 95% confidence interval in blue. If the autocorrelation crosses the dashed blue line, it means that specific lag is significantly correlated with current series.
-
-```{r}
-autoplot(acf(AP,plot=FALSE))+ labs(title="Correlogram of Air Passengers from 1949 to 1961") 
-```
-
-
-The maximum at lag 1 or 12 months, indicates a positive relationship with the 12 month cycle.
-
-Since we have already created the decomposeAP list object with a random component, we can plot the acf of the decomposeAP$random.
-
-```{r}
-# Review random time series for any missing values
-decomposeAP$random 
-```
-
-```{r}
-# Autoplot the random time series from 7:138 which exclude the NA values
-autoplot(acf(decomposeAP$random[7:138],plot=FALSE))+ labs(title="Correlogram of Air Passengers Random Component from 1949 to 1961") 
-```
-
-### FIT A TIME SERIES MODEL
-
-1. Linear Model
-
-Since there is an upwards trend we will look at a linear model first for comparison. We plot AirPassengers raw dataset with a blue linear model.
-
-```{r}
-autoplot(AP) + geom_smooth(method="lm")+ labs(x ="Date", y = "Passenger numbers (1000's)", title="Air Passengers from 1949 to 1961") 
-```
-
-This may not be the best model to fit as it doesn’t capture the seasonality and multiplicative effects over time.
-
-2. ARIMA Model
-
-Use the auto.arima function from the forecast R package to fit the best model and coefficients, given the default parameters including seasonality as TRUE. Note we have used the ARIMA modeling procedure as referenced
-
-```{r}
-arimaAP <- auto.arima(AP)
-arimaAP
-```
-
-### CALCULATE FORECASTS
-
-Finally we can plot a forecast of the time series using the forecast function, again from the forecast R package, with a 95% confidence interval where h is the forecast horizon periods in months.
-
-
-```{r}
-
-forecastAP <- forecast(arimaAP, level = c(95), h = 36)
-autoplot(forecastAP)
-```
 
 # References
 
