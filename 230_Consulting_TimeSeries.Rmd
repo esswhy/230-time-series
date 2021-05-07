@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 
-We are using an example data set used in the Appendix by @shumway_time_2017. Additional examples for code using `R` to explore time series data is also found in @hyndman_forecasting_nodate. For this analysis we use `tidyverse` @tidyverse, `lubridate` @lubridate, `PerformanceAnalytics` @PerformanceAnalytics, `Hmisc` @Hmisc, `astsa` @astsa, `ggfortify` @ggfortify, `tseries` @tseries, `forecast` @forecast, and `gridExtra` @gridextra. 
+We are using an example data set used in the Appendix by @shumway_time_2017. Additional examples for code using `R` to explore time series data is also found in @hyndman_forecasting_nodate. For this analysis we use `tidyverse` @tidyverse, `lubridate` @lubridate, `PerformanceAnalytics` @PerformanceAnalytics, `Hmisc` @Hmisc, `astsa` @astsa, `ggfortify` @ggfortify, `tseries` @tseries, `forecast` @forecast, and `gridExtra` @gridextra. These concepts ar based on notes from @TSintro_slides2020.
 
 
 Time series data can be thought of as data consistently measured or observed at different points in time. In this way, the data have an implicit _order_ or flow, and questions about time series data often involve questions about change over time. 
@@ -116,7 +116,7 @@ From these exploratory plots, we can make some initial conclusions:
 * There do not appear to be any outliers and there are no missing values. Therefore no data cleaning is required.
 
 
-## Visualize the Data: Decomposition
+## Visualize the Data: Decomp.
 
 Continuing to use `ggfortify`, we can further explore the multiplicative nature of the time series uisng the `decompose(data,type)` command. 
 
@@ -242,6 +242,8 @@ tempr.ts <- ts(tempr, start=c(1970,1), frequency = 52)
 
 <br>
 
+## Visualize the Data: Basic Plots
+
 The first thing we might want to do is simply visualize the data. Because the `cmort`,`tempr` and `part` time series are all on the same time scale (weekly, 1970-1980), we can plot them on the same plot.
 
 ```{r, df_print}
@@ -253,20 +255,24 @@ par(mar=c(.2,2,0,.5), oma=c(3.2,3,2.5,0.5), las=1)
 plot(part.ts, type='n', xaxt='no', ylab='PM Conc.')
 grid(lty=1, col=gray(.9))
 lines(part.ts, col = "cadetblue3")
+text(1971,95,labels = "Particulate Matter Concentration",col = "cadetblue")
 
 #Cardiovascular mortality
 plot(cmort.ts, type='n', xaxt='no', ylab='Cardiac Mortality')
 grid(lty=1, col=gray(.9))
 lines(cmort.ts, col="orange3")
+text(1970.7,125,labels = "Cardiovascular Mortality",col = "orange3")
 
 #Temperature
 plot(tempr.ts, type='n', ylab="Temperature")
 grid(lty=1, col=gray(.9))
 lines(tempr.ts, col="forestgreen")
+text(1970.2,96,labels = "Temperature",col = "forestgreen")
 
 #Labels
 mtext(side=1, "Year", line=2)
 title(main = "Particulate Concentration, Cardiovascular Mortality, and Temperature", outer = T)
+
 ```
 
 The first subplot (blue line) shows the weekly average particulate matter concentration. The next subplot (orange line) shows the weekly cardiovascular death count. The final line in green shows the average weekly temperature. From a descriptive stand point, a few things stand out about this plot: 
@@ -300,14 +306,20 @@ boxplot(tempr.ts~cycle(tempr.ts),xlab="Date", ylab = "Temperature" ,main ="Weekl
 boxplot(part.ts~cycle(part.ts),xlab="Date", ylab = "Particulate Matter" ,main ="Weekly Particulate Matter Conc. Boxplot from 1949 to 1961")
 ```
 
-We also might want to visualize the decomposition of the cardiovascular mortality time series-- which, looks *additve* from our data.
+## Visualize the Data: Decomp.
+
+We also might want to visualize the decomposition of the different data sets. The temperature data set looks  cardiovascular mortality time series-- which, looks *additve* from our data.
 
 ```{r}
 cmort.decomp <- decompose(cmort.ts, "additive")
 tempr.decomp <- decompose(tempr.ts,"additive")
-autoplot(tempr.decomp)
-autoplot(cmort.decomp)
+part.decomp <- decompose(part.ts,"additive")
+autoplot(part.decomp) + ggtitle("PM Concentration: Additive Decomposition")
+autoplot(cmort.decomp) + ggtitle("Cardiovascular Mortality: Additive Decomposition")
+autoplot(tempr.decomp) + ggtitle("Temperature: Additive Decomposition")
 ```
+
+## Understanding Correlations
 
 We can also consider each time series separately by plotting the lag correlations (as below with the cardiovascular mortality data).
 
@@ -376,7 +388,7 @@ abline(v=0, lty=2, col = "cadetblue")
 abline(v=-.0192, lty=2, col = "orange")
 legend("bottomleft", legend=c("Lag 0", "Peak |H| (-0.192,-.545)"), col=c("cadetblue","orange"),lty=2, bty="n", cex=0.9)
 ```
-From these plots, it seems that peak particulate matter lead is around -0.1346. The peak temperatures (mean centered) is -0.192 which again suggests that temperature _leads_ cardiovascular mortality. (Note that in using the `ccf` function, $x$ is the covariate time series and $y$ is the time series of interest. The plots should be symmetric, but the lags/leads will be reversed.)
+From these plots, it seems that peak particulate matter lead is around -0.1346. The peak temperatures (mean centered) is -0.192 which again suggests that temperature _leads_ cardiovascular mortality. (Note that in using the `ccf` function, $x$ is the covariate time series and $y$ is the time series of interest. The plots should be similar, but the lags/leads will be reversed.)
 
 Finally, we can learn a lot from simple scatterplots about relationship between cardiovascular mortality and temperature and/or particulate matter. The scatterplots indicate a possible *nonlinear* relation between mortality and the temperature, and a more linear pattern between mortality and particulate matter. 
 
@@ -392,9 +404,9 @@ lines(lowess(part,cmort),col="red")
 We can further check the nonstationariy with the ADF test. 
 
 ```{r}
-df <- cbind(Mortality = cmort.ts,PM = part.ts,Temp = tempr.ts)
-#autoplot(df)+ggtitle("Time Series Cardiovascular Mortality, Temperature, PM Conc.")+theme(plot.title=element_text(hjust=0.5))
-apply(df,2,adf.test)
+adf.test(cmort.ts,k=52)
+adf.test(part.ts,k=52)
+adf.test(tempr.ts,k=52)
 ```
 
 # Modeling Multivariate Time Series in R
