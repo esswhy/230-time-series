@@ -109,7 +109,7 @@ From these exploratory plots, we can make some initial conclusions:
 
 * The passenger numbers increase over time with each year which may be indicative of an increasing linear trend, perhaps due to increasing demand for flight travel and commercialization of airlines in that time period.
 
-* In the boxplot there are more passengers travelling in months 6 to 9 with higher means and higher variances than the other months, indicating seasonality with a apparent cycle of 12 months. The rationale for this could be more people taking holidays and fly over the summer months in the US.
+* In the boxplot there are more passengers traveling in months 6 to 9 with higher means and higher variances than the other months, indicating seasonality with a apparent cycle of 12 months. The rationale for this could be more people taking holidays and fly over the summer months in the US.
 
 * The air passengers data appears to be *multiplicative* time series as the passenger numbers increase, it appears so does the pattern of seasonality.
 
@@ -145,7 +145,7 @@ In order to test the stationarity of the time series, let’s run the Augmented 
 For this test, the null hypothesis, $H_0$ is that the time series is nonstationary, and the alternative hypothesis, $H_A$ is that the time series is stationary (mean, variance, covariance are time independent).
 
 ```{r}
-adf.test(AP) 
+adf.test(AP, k=12) ## include cycle length as k
 ```
 
 If we set $\alpha$ to 0.05, the results of the test suggest that time series is nonstationary. This assumption is supported by our initial visualizations.
@@ -326,14 +326,20 @@ title(main = "Cardiovascular Mortality with Lags",outer = T)
 ```
 
 We can also see this pattern confirmed in the `acf` plot (also called a correlogram). 
-To measure dependence, we can use an **autocorrelation function (ACF)** in a time series model. ACF measures the linear predictability of the time series ($x_1,x_2,...x_n$) at time $s$ using only its adjacent value at time $t$ [@shumway_time_2006]. This can be done by using a linear combination of inputs. It also ACF provides the ability to forecast the series at time $s+1$ from the value of $x$ at time $t$ ($x_s$). 
+To measure dependence, we can use an **autocorrelation function (ACF)** in a time series model. ACF measures the linear predictability of the time series ($x_1,x_2,...x_n$) at time $s$ using only its adjacent value at time $t$ [@shumway_time_2006] quantified in the covariance or correlation (standardized). This can be done by using a linear combination of inputs. ACF provides the ability to forecast the series at time $s+1$ from the value of $x$ at time $t$ ($x_s$). 
 
 ```{r}
 ## Plotting ACF Cardiovascular Mortality
-autoplot(acf(cmort.ts,plot=F, type = "correlation"))+labs(title="Correlogram of Cardiovascular Mortality, 1970-1980")+geom_vline(xintercept = .308,col="pink",lty=2) +theme_bw()
+## Note that the autoplot does not plot the value at 0 which should be one.
+
+par(mar=c(1.2,2,1,1.5), oma=c(1.2,2,1.5,1.5), las=1)
+#autoplot(acf(cmort.ts,plot=F, type = "correlation"))+labs(title="Correlogram of Cardiovascular Mortality, 1970-1980")+geom_vline(xintercept = .308,col="pink",lty=2) +theme_bw()
+acf(cmort.ts,plot = T,type="correlation")
+abline(v=.308,col="pink",lty=2)
+title("Correlogram of Cardiovascular Mortality, 1970-1980",outer=T)
 ```
 
-Recall from the univariate case that ACF can also help us assess stationarity. Prolonged negative or positive values indicate nonstationarity. These plots have a significant correlations that persist too long to be stationary.
+Note that we expect the correlation to be perfect at lag 0 (the time series should be perfectly correlated with itself), every other bar indicates the series' correlation with the same initial series successively lagged. 
 
 
 ```{r}
@@ -343,6 +349,9 @@ g1 <- autoplot(acf(part.ts,plot=F, type = "correlation"))+labs(title="Correlogra
 g2 <- autoplot(acf(tempr.ts,plot=F, type = "correlation"))+labs(title="Correlogram of  Temperature, 1970-1980") +theme_bw()
 grid.arrange(ncol=1,g1,g2)
 ```
+<br> 
+
+## CCF sample cross correlation
 
 We can also assess the relationship between two time series explicitly using the sample cross correlation. For some background, the sample CCF is the set of sample correlations between $part_{t+h}$ and $cmort_t$ for example, where h is the lag of ($0, +/- 1, +/-2,...$). 
 
@@ -352,12 +361,22 @@ We can also assess the relationship between two time series explicitly using the
 We can investigate this using `ccf` command in `R`.
 
 ```{r}
-pm_cmort.ccf <- ccf(part,cmort,type="correlation", plot = F)
-autoplot(pm_cmort.ccf)+ggtitle("Cardiovascular Mortality and Particulate Matter CCF")
-temp_cmort.ccf <- ccf(tempr,cmort,type="correlation", plot = F)
-autoplot(temp_cmort.ccf)+ggtitle("Cardiovascular Mortality and Temperature CCF")
+## CCF with PM
+par(mar=c(1.2,2,1,1.5), oma=c(1.2,2,1.5,1.5), las=1)
+ccf(part.ts,cmort.ts,plot = T,type="correlation")
+abline(v=0, lty=2, col = "cadetblue")
+abline(v=-0.1346, lty=2, col = "orange")
+title("CCF of Cardiovascular Mortality with PM Conc., 1970-1980",outer=T)
+legend("topright", legend=c("Lag 0", "Peak |H| (-0.1346,0.535)"), col=c("cadetblue","orange"),lty=2, bty="n", cex=0.9)
+par(mar=c(1.2,2,1,1.5), oma=c(1.2,2,1.5,1.5), las=1)
+## CCF with Temp
+ccf(tempr.ts,cmort.ts,plot = T,type="correlation")
+title("CCF of Cardiovascular Mortality with Temperature, 1970-1980",outer=T)
+abline(v=0, lty=2, col = "cadetblue")
+abline(v=-.0192, lty=2, col = "orange")
+legend("bottomleft", legend=c("Lag 0", "Peak |H| (-0.192,-.545)"), col=c("cadetblue","orange"),lty=2, bty="n", cex=0.9)
 ```
-From these plots, it seems that peak particulate matter lead is around -0.1356. The peak temperatures (mean centered) is -.4433 which again suggests that temperature leads cardiovascular mortality.
+From these plots, it seems that peak particulate matter lead is around -0.1346. The peak temperatures (mean centered) is -0.192 which again suggests that temperature _leads_ cardiovascular mortality. (Note that in using the `ccf` function, $x$ is the covariate time series and $y$ is the time series of interest. The plots should be symmetric, but the lags/leads will be reversed.)
 
 Finally, we can learn a lot from simple scatterplots about relationship between cardiovascular mortality and temperature and/or particulate matter. The scatterplots indicate a possible *nonlinear* relation between mortality and the temperature, and a more linear pattern between mortality and particulate matter. 
 
