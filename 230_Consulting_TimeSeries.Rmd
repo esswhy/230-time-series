@@ -1,7 +1,7 @@
 ---
 title: "PSTAT 230: Time Series Consulting"
 author: "Selin Karabulut, Sophia Arabadjis, Shuying Yu"
-date: "4/27/2021"
+date: "4/30/2021"
 output: 
   html_document:
     df_print: paged
